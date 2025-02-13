@@ -71,7 +71,7 @@ def check_feed(blog_url, session):
             如果 feed 链接可访问，则返回 ['feed', feed_url]；
             如果都不可访问，则返回 ['none', blog_url]。
     """
-    
+
     possible_feeds = [
         ('atom', '/atom.xml'),
         ('rss', '/rss.xml'), # 2024-07-26 添加 /rss.xml内容的支持
@@ -114,16 +114,16 @@ def parse_feed(url, session, count=5, blog_url=''):
         response = session.get(url, headers=headers, timeout=timeout)
         response.encoding = response.apparent_encoding or 'utf-8'
         feed = feedparser.parse(response.text)
-        
+
         result = {
             'website_name': feed.feed.title if 'title' in feed.feed else '',
             'author': feed.feed.author if 'author' in feed.feed else '',
             'link': feed.feed.link if 'link' in feed.feed else '',
             'articles': []
         }
-        
+
         for _ , entry in enumerate(feed.entries):
-            
+
             if 'published' in entry:
                 published = format_published_time(entry.published)
             elif 'updated' in entry:
@@ -133,10 +133,10 @@ def parse_feed(url, session, count=5, blog_url=''):
             else:
                 published = ''
                 logging.warning(f"文章 {entry.title} 未包含任何时间信息, 请检查原文, 设置为默认时间")
-            
+
             # 处理链接中可能存在的错误，比如ip或localhost
             article_link = replace_non_domain(entry.link, blog_url) if 'link' in entry else ''
-            
+
             article = {
                 'title': entry.title if 'title' in entry else '',
                 'author': result['author'],
@@ -146,12 +146,12 @@ def parse_feed(url, session, count=5, blog_url=''):
                 'content': entry.content[0].value if 'content' in entry and entry.content else entry.description if 'description' in entry else ''
             }
             result['articles'].append(article)
-        
+
         # 对文章按时间排序，并只取前 count 篇文章
         result['articles'] = sorted(result['articles'], key=lambda x: datetime.strptime(x['published'], '%Y-%m-%d %H:%M'), reverse=True)
         if count < len(result['articles']):
             result['articles'] = result['articles'][:count]
-        
+
         return result
     except Exception as e:
         logging.error(f"无法解析FEED地址：{url} ，请自行排查原因！")
@@ -172,11 +172,11 @@ def replace_non_domain(link: str, blog_url: str) -> str:
     :param blog_url: 替换为的博客地址
     :return: 替换后的地址字符串
     """
-    
+
     # 提取link中的路径部分，无需协议和域名
     # path = re.sub(r'^https?://[^/]+', '', link)
     # print(path)
-    
+
     return link
 
 def process_friend(friend, session, count, specific_RSS=[]):
@@ -193,7 +193,7 @@ def process_friend(friend, session, count, specific_RSS=[]):
     dict: 包含朋友博客信息的字典。
     """
     name, blog_url, avatar = friend
-    
+
     # 如果 specific_RSS 中有对应的 name，则直接返回 feed_url
     if specific_RSS is None:
         specific_RSS = []
@@ -218,10 +218,10 @@ def process_friend(friend, session, count, specific_RSS=[]):
             }
             for article in feed_info['articles']
         ]
-        
+
         for article in articles:
             logging.info(f"{name} 发布了新文章：{article['title']}，时间：{article['created']}，链接：{article['link']}")
-        
+
         return {
             'name': name,
             'status': 'active',
@@ -248,7 +248,7 @@ def fetch_and_process_data(json_url, specific_RSS=[], count=5):
     dict: 包含统计数据和文章信息的字典。
     """
     session = requests.Session()
-    
+
     try:
         response = session.get(json_url, headers=headers, timeout=timeout)
         friends_data = response.json()
@@ -256,7 +256,13 @@ def fetch_and_process_data(json_url, specific_RSS=[], count=5):
         logging.error(f"无法获取链接：{json_url} ：{e}", exc_info=True)
         return None
 
-    total_friends = len(friends_data['friends'])
+    # 将你的 JSON 格式转换为 Friend-Circle-Lite 所需的格式
+    friends_list = [
+        [friend['title'], friend['url'], friend['avatar']]  # 转换为 [name, blog_url, avatar]
+        for friend in friends_data['content']
+    ]
+
+    total_friends = len(friends_list)
     active_friends = 0
     error_friends = 0
     total_articles = 0
@@ -266,9 +272,9 @@ def fetch_and_process_data(json_url, specific_RSS=[], count=5):
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_friend = {
             executor.submit(process_friend, friend, session, count, specific_RSS): friend
-            for friend in friends_data['friends']
+            for friend in friends_list
         }
-        
+
         for future in as_completed(future_to_friend):
             friend = future_to_friend[future]
             try:
@@ -295,7 +301,7 @@ def fetch_and_process_data(json_url, specific_RSS=[], count=5):
         },
         'article_data': article_data
     }
-    
+
     logging.info(f"数据处理完成，总共有 {total_friends} 位朋友，其中 {active_friends} 位博客可访问，{error_friends} 位博客无法访问")
 
     return result, error_friends_info
@@ -316,7 +322,7 @@ def sort_articles_by_time(data):
             article['created'] = '2024-01-01 00:00'
             # 输出警告信息
             logging.warning(f"文章 {article['title']} 未包含时间信息，已设置为默认时间 2024-01-01 00:00")
-    
+
     if 'article_data' in data:
         sorted_articles = sorted(
             data['article_data'],
@@ -343,7 +349,7 @@ def marge_data_from_json_url(data, marge_json_url):
     except Exception as e:
         logging.error(f"无法获取链接：{marge_json_url}，出现的问题为：{e}", exc_info=True)
         return data
-    
+
     if 'article_data' in marge_data:
         logging.info(f"开始合并数据，原数据共有 {len(data['article_data'])} 篇文章，第三方数据共有 {len(marge_data['article_data'])} 篇文章")
         data['article_data'].extend(marge_data['article_data'])
@@ -384,10 +390,10 @@ def marge_errors_from_json_url(errors, marge_json_url):
 def deal_with_large_data(result):
     """
     处理文章数据，保留前150篇及其作者在后续文章中的出现。
-    
+
     参数：
     result (dict): 包含统计数据和文章数据的字典。
-    
+
     返回：
     dict: 处理后的数据，只包含需要的文章。
     """
