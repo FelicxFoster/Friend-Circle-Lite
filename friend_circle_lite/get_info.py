@@ -387,12 +387,13 @@ def marge_errors_from_json_url(errors, marge_json_url):
     logging.info(f"合并错误信息完成，合并后共有 {len(filtered_errors)} 位朋友")
     return filtered_errors
 
-def deal_with_large_data(result):
+def deal_with_large_data(result, max_articles=10):
     """
-    处理文章数据，保留前150篇及其作者在后续文章中的出现。
+    处理文章数据，保留前 max_articles 篇及其作者在后续文章中的出现。
 
     参数：
     result (dict): 包含统计数据和文章数据的字典。
+    max_articles (int): 需要保留的文章数量，默认为 10。
 
     返回：
     dict: 处理后的数据，只包含需要的文章。
@@ -400,10 +401,9 @@ def deal_with_large_data(result):
     result = sort_articles_by_time(result)
     article_data = result.get("article_data", [])
 
-    # 检查文章数量是否大于 150
-    max_articles = 150
+    # 检查文章数量是否大于 max_articles
     if len(article_data) > max_articles:
-        logging.info("数据量较大，开始进行处理...")
+        logging.info(f"数据量较大，开始进行处理，保留前 {max_articles} 篇文章...")
         # 获取前 max_articles 篇文章的作者集合
         top_authors = {article["author"] for article in article_data[:max_articles]}
 
@@ -418,5 +418,7 @@ def deal_with_large_data(result):
         # 更新结果中的统计数据
         result["statistical_data"]["article_num"] = len(filtered_articles)
         logging.info(f"数据处理完成，保留 {len(filtered_articles)} 篇文章")
+    else:
+        logging.info(f"数据量未超过 {max_articles} 篇，无需处理")
 
     return result

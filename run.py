@@ -28,7 +28,7 @@ if config["spider_settings"]["enable"]:
         result = marge_data_from_json_url(result, marge_json_url + "/all.json")
         lost_friends = marge_errors_from_json_url(lost_friends, marge_json_url + "/errors.json")
     logging.info("数据获取完毕，目前共有 {count} 位好友的动态，正在处理数据".format(count=len(result.get("article_data", []))))
-    result = deal_with_large_data(result)
+    result = deal_with_large_data(result, max_articles=10)
 
     with open("all.json", "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
@@ -49,7 +49,7 @@ if config["email_push"]["enable"] or config["rss_subscribe"]["enable"]:
 if config["email_push"]["enable"]:
     logging.info("邮件推送已启用")
     logging.info("抱歉，目前暂未实现功能")
-    
+
 if config["rss_subscribe"]["enable"]:
     logging.info("RSS 订阅推送已启用")
     # 获取并强制转换为字符串
@@ -62,11 +62,11 @@ if config["rss_subscribe"]["enable"]:
     else:
         github_username = str(config["rss_subscribe"]["github_username"]).strip()
         github_repo = str(config["rss_subscribe"]["github_repo"]).strip()
-    
+
     # 输出 github_username 和 github_repo
     logging.info("github_username: {github_username}".format(github_username=github_username))
     logging.info("github_repo: {github_repo}".format(github_repo=github_repo))
-    
+
     your_blog_url = config["rss_subscribe"]["your_blog_url"]
     email_template = config["rss_subscribe"]["email_template"]
     # 获取网站信息
@@ -99,7 +99,7 @@ if config["rss_subscribe"]["enable"]:
                 "website_title": website_title,
                 "github_issue_url": f"https://github.com/{github_username}/{github_repo}/issues?q=is%3Aissue+is%3Aclosed",
             }
-            
+
             send_emails(
                 emails=email_list["emails"],
                 sender_email=email,
